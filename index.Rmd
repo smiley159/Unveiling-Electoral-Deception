@@ -1,0 +1,953 @@
+---
+title: "Unveiling Electoral Deception: An Investigation into Cheating Practices during Election 66"
+output: 
+  html_notebook:
+    toc: true
+    number_sections: true
+    fig_width: 12
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+# Set the default HTML output name for R Notebook
+knitr::opts_knit$set(root.dir = ".", prefix = "index")
+
+options(java.parameters = "- Xmx1024m")
+
+setwd("D:/Download/R")
+#setwd("/Users/smile/Downloads")
+#setwd("D:/Download")
+
+library(readxl)
+library(xlsx)
+library(data.table)
+library(magrittr)
+library(knitr)
+library(ggplot2)
+library(scales)
+library(tidyr)
+library(IRdisplay)
+library(ggrepel)
+
+
+```
+
+```{r}
+
+include_graphics("cheating.png")
+```
+
+>ขอขอบคุณข้อมูลจากกกตที่ดึงมาโดยชุมชน ก้าวgeek [download](https://docs.google.com/spreadsheets/d/1WE1yZ6TeyS0-40TWS8OupULc8I_JiWTAo5fm3OCozIo/edit#gid=1155138857)
+
+>แนวทางการวิเคราะห์ได้ไอเดียเริ่มต้นมาจากการวิคลิปบนยูทูบของช่อง[อาจารย์ ลอย ชุนพงษ์ทอง](https://www.youtube.com/@LoyAcademy)
+
+>**disclaimer ยังไม่ได้ testโค้ดและทวนสอบข้อมูลอย่างถี่ถ้วน**
+
+---
+
+
+
+
+# บทนำ
+
+>อาจารย์ ลอย ชุนพงษ์ทอง (https://www.youtube.com/@LoyAcademy)
+ได้นำเสนอข้อมูลที่เป็นหลักฐานทางคณิตศาสตร์ที่ชี้ให้เห็นว่าการเปลี่ยนระบบเป็นกาบัตร 2 ใบ น่าจะมีส่วนอย่างมากทำให้มีพรรคการเมืองหน้าใหม่ทั้งหมด 6 พรรค ได้  ส.ส. ปัดเศษเข้าไปนั่งในสภา รวมไปถึงข้อมูลที่มีนัยยะทางคณิตศาสตร์ ว่าเขตที่ยิ่งมีการกาบัตรสลับใบมาก ยิ่งมีแน้วโน้มที่จะเกิดการทุจริการเลือกตั้งโดยการซื้อเสียงในเขตนั้นๆ หรือที่อาจารย์เรียกว่าทฤษฎีปลอกกระสุนปืน
+
+>การทุจริตการเลือกตั้งโดยการซื้อเสียงมักจะทำโดยการซื้อเสียง  ส.ส. เขตเนื่องจากใช้เงินลงทุนน้อยกว่ามากต่อ 1 ที่นั่งในสภา และชาวบ้านที่ถูกซื้อเสียงเหล่านั้นก็มักจะกาบัตร 2 ใบเป็นเลขเดียวกันเพื่อป้องกันความผิดพลาดและง่ายต่อการจดจำ นี่จึงเป็นเหตุที่ระบบกาบัตร 2 ใบจึงได้ทิ้งร่องรอย หรือที่อาจารย์ลอยเรียกว่าปลอกกระสุนทิ้งไว้เกลื่อนตามทาง
+
+>ในบทความนี้เราจะนำเสนอข้อมูลที่นำไปสู่ข้อบ่งชี้ ที่ทำให้เห็นว่าผู้สมัคร ส.ส.เขตใดหรือพรรคการเมืองใด มีแนวโน้มที่จะทุจริตอย่างมีนัยยะสำคัญ ในขณะเดียวกันเราก็สามารถวิเคราะห์ในเชิงตรงข้ามว่าผู้สมัคร  ส.ส. เขตและพรรคการเมืองใดที่น่าจะใสสะอาด ไร้ซึ่งร่องรอยแห่งปลอกกระสุนให้มีข้อต้องสงสัยใดๆเลย
+
+
+
+---
+
+
+
+```{r loading data}
+
+
+partyListResult = read_excel("ectreport66.xlsx",sheet = 2) %>% setDT
+partyListResult[,party_id := as.character(party_id)]
+partyListResult[,totalVote := sum(party_list_vote), by = list(cons_id)]
+partyListResult[,party_list_vote_percent := round((party_list_vote/totalVote)*100,4) ]
+
+zoneResult = read.xlsx2("ectreport66.xlsx", sheetIndex = 3) %>% setDT
+zoneStatus = read.xlsx2("ectreport66.xlsx", sheetIndex = 4) %>% setDT
+candidate = read.xlsx2("ectreport66.xlsx", sheetName = "Candidate_Constituency")%>% setDT
+partyList = read.xlsx2("ectreport66.xlsx", sheetName = "Candidate_PartyList")%>% setDT
+province = read.xlsx2("ectreport66.xlsx", sheetName = "info_province")%>% setDT
+party = read.xlsx2("ectreport66.xlsx", sheetName = "info_party_overview")%>% setDT
+zone = read.xlsx("ectreport66.xlsx", sheetName = "info_constituency")%>% setDT
+
+```
+
+```{r preparing data, echo = FALSE}
+
+zone = unique(zone[,.(cons_id,prov_id,registered_vote,cons_no)])
+zone[province,province_name := province, on = "prov_id"]
+
+result <- merge(zoneResult, partyListResult[,.(cons_id,party_id,party_list_vote,party_list_vote_percent)], by = c("cons_id","party_id"), all = TRUE)
+
+result[zone, province_name := province_name, on = "cons_id"]
+result[zone, cons_no := cons_no, on = "cons_id"]
+result[party, party_name := i.name, on = c(party_id = "id")]
+result[party, party_no := party_no, on = c(party_id = "id")]
+result[candidate, no := mp_app_no,on = "mp_app_id"]
+
+result[,mp_app_rank := as.numeric(mp_app_rank)]
+result[,zone_vote := as.numeric(mp_app_vote)]
+result$mp_app_vote = NULL
+result[,party_list_vote := as.numeric(party_list_vote)]
+set(result, which(is.na(result$zone_vote)), "zone_vote", 0)
+set(result, which(is.na(result$party_list_vote)), "party_list_vote", 0)
+
+old_goverment = c(6,7,14,18,22,26,35,37,38,42)
+result$is_gov = 0
+result[,party_no := as.numeric(party_no)]
+result[,no := as.numeric(no)]
+result[ party_no %in% old_goverment, is_gov := 1]
+result[,zone_score_diff := zone_vote/party_list_vote-1]
+
+result = result[order(cons_id,mp_app_rank)]
+
+```
+
+
+
+# ผลการเลือกตั้งคะแนนบัญชีรายชื่อ  
+
+
+```{r calculating party list result, echo = FALSE, fig.width=12}
+library(DT)
+
+temp = result[,.(vote = sum(party_list_vote)), by = list(party_name,party_no)][order(vote,decreasing = TRUE)]
+totalVote = sum(temp$vote)
+temp[,percentage :=  round(vote/totalVote,4)]
+temp[,full_seat := floor(percentage*100)]
+temp[,remainder := round(percentage%%0.01,4)]
+temp = temp[order(-remainder)]
+temp$extra_seat = 0
+temp$extra_seat[1:(100-sum(temp$full_seat))] = 1
+temp[,total_seat := full_seat+extra_seat]
+
+temp = temp[order(-vote)]
+#temp = temp[total_seat>0]
+
+temp$party_name <- reorder(temp$party_name, -temp$vote)
+
+ggplot(data=temp[1:20], mapping=aes(x=party_name, y = total_seat, fill=party_name)) + 
+  geom_bar(stat = "identity")+
+  geom_text(aes(label = total_seat), vjust = -0.5, size = 3) +
+  theme(axis.text.x = element_text(angle = 90,vjust = 0),axis.text = element_text(size = 14))
+
+
+display =temp[,list(
+  เลขพรรค = party_no,
+  พรรค = party_name,
+  คะแนน = format(vote, big.mark = ","),
+  `เปอร์เซ็นต์` = percent(percentage,accuracy = 0.01),
+  `ที่นั่ง` = full_seat,
+  เศษ = percent(remainder,accuracy = 0.01),
+  `ที่นั่งปัดเศษ` = extra_seat,
+  `รวมที่นั่ง` = total_seat
+)]
+
+
+datatable(display, options = list(pageLength = 20))
+
+# number one to 6 is some random party getting seat from party list beating some well known party
+
+```
+
+> จากทั้งหมด 17 พรรคการเมืองที่ได้ที่นั่งบัญชีรายชื่อในสภา จะสังเกตุได้ว่าพรรคเบอร์ 1 ถึง 6  ล้วนได้ที่นั่ง ส.ส.ปัดเศษกันทั้งสิ้น หากมองเลยไปถึงพรรคหมายเลข 8 และหมายเลข 9 ถึงแม้ว่าทั้ง 2 พรรคจะไม่ได้ที่นั่งในสภา แต่ก็ยังมีคะแนนบัญชีรายชื่อก็อยู่ใน 20 อันดับแรกสูงสุด
+
+> ทั้งหมดนี้เป็นเพราะความบังเอิญ หรือเป็นที่ข้อผิดพลาดของระบบเลือกตั้งบัตร 2 ใบกันแน่?
+
+## การกาสลับใบ
+
+> หากสมมติฐานคือ พรรคเหล่านี้ได้อานิสงค์จากการกาสลับใบ หรือก็คือการที่ผู้ลงคะแนนเอาหมายเลข ส.ส.เขตไปกาคะแนนให้กับใบลงคะแนนบัญชีรายชื่อ ซึ่งหากเป็นเช่นนั้นเราก็ต้องถามต่อว่า แล้วทำไมหวยถึงมาออกที่พรรคหมายเลข 1 ถึง 6 คำตอบคือจริงๆแล้วพรรคอื่นๆตั้งแต่หมายเลข 7 ขึ้นไปก็ได้คะแนนส้มหล่นตรงนี้เช่นกัน เพียงแต่พรรคเลขยิ่งน้อยจะยิ่งได้อนิสงส์มาก
+
+> เมื่อเราดูข้อมูลของผู้สมัคร  ส.ส. เขตทั่วประเทศจะพบว่า ผู้สมัครที่มีหมายเลขสูงสุดคือหมายเลข 20 ซึ่งเป็นผู้สมัครจากพรรคคลองไทยในพื้นที่ขอนแก่นเขต 4
+
+> แต่หากหากเราดูเฉพาะผู้สมัคร  ส.ส. จาก 6 พรรคใหญ่พบหมายเลขสูงสุดคือหมายเลข 15 จำนวน 3 ท่าน ซึ่งเป็นผู้สมัครจากพรรคพลังประชารัฐและพรรคเพื่อไทยในจังหวัดกรุงเทพมหานคร
+
+## ผู้สมัครหมายเลขหลักเดียวมีจำนวนมาก
+
+```{r}
+bigParty = c(7,22,29,31,37,26)
+smallParty = c(1:20)
+smallParty = smallParty[!smallParty %in% bigParty ]
+
+display = result[order(no)][!is.na(no),list(
+  `จำนวนผู้สมัคร` = .N,
+  `คะแนนเสียง` = format(sum(zone_vote),big.mark=",")
+),by = list(
+  `หมายเลขผู้สมัคร` = no
+  )]
+
+datatable(display, options = list(pageLength = 15, dom = 'rt'),rownames = FALSE)
+
+#result[party_no %in% bigParty, list(cnt = .N),by = list(party_name,no)][order(party_name,no)]
+```
+>เมื่อเรานำผู้สมัคร ส.ส เขตทั้วประเทศมากางออกจะพบว่า
+>
+1. ทั้ง 400 เขตมีผู้สมัครหมายเลข 1 ถึง 8
+2. คะแนนเบอร์ 1 ถึง 7 ไม่มีผลต่างอย่างมีนัยยนะสำคัญ
+3. ตั้งแต่เบอร์ 10 ลงไป คะแนนเสียงที่ได้รับต่ำลงอย่างมีนัยยะสำคัญ
+
+
+## เสียงที่ได้มาโดยบังเอิญ
+
+>เรายังพบอีกว่าสำหรับพรรคเบอร์ 1-9 นั้น โดยเฉลี่ยแล้ว คะแนนบัญชีรายชื่อราวๆ 82.6% เป็นคะแนนที่ได้มาในเขตที่เลขของพรรคไปตรงกับผู้สมัครที่มาจาก 6 พรรคใหญ่ และสูงถึงกว่า 87% สำหรับพรรคหมายเลข  3,5, และ 6
+
+>หรือหากดูเป็นจำนวนเขตจะพบว่า 82.6% ของคะแนนเสียงได้มาจาก 59.8% ของจำนวนเขตทั้งหมด และคะแนนที้เหลืออีก 17.4% ได้มาจากจำนวนเขต 40.2% ที่เหลือที่หมายเลขพรรคไปตรงกับผู้สมัครจากพรรคอื่นๆ
+
+> เรายังสามารถประมานการณ์คะแนนบัญชีรายชื่อที่แท้จริงหากไม่มีการสาดกระสุนเกิดขึ้นได้ ด้วยการเทียบบัญญัติยางค์จากตัวเลขคะแนนบัญชีรายชื่อของเขตที่ไม่ชนกับผู้สมัครพรรคใหญ่และจำนวนเขต ซึ่งจะได้ออกมาว่ามีปลอกกระสุนราวๆ 873,678 นัด
+
+```{r when popular zone candidate align with new parties, echo = FALSE, fig.width=12}
+
+
+alignZone = result[party_no %in% bigParty & no %in% smallParty]
+t = result[alignZone, on = list(cons_id,party_no = no)]
+
+#t = t[cons_id %in% suspect$cons_id]
+t = t[party_no %in% smallParty,
+      list(party_list_vote = sum(party_list_vote), cnt = .N), by = list(party_no,party_name)][order(party_no)]
+# t = result[party_no %in% smallParty & !cons_id %in% alignZone,
+#       list(party_list_vote = sum(party_list_vote)), by = list(party_no)][order(party_no)]
+
+t[temp, total_vote := vote,on = list(party_no)]
+t[,ratio := party_list_vote/total_vote]
+t[,extrapolate := as.integer((1-ratio)*total_vote*400/(400-cnt)) ]
+t[,diff := total_vote-extrapolate]
+#t[,x := party_list_vote/cnt]
+
+
+t$party_name <- reorder(t$party_name, t$party_no)
+
+
+ggplot(data=t, mapping=aes(x=party_name, y = ratio, fill=party_name)) + 
+  geom_bar(stat = "identity")+
+  geom_text(aes(label = percent(ratio)), vjust = -0.5, size = 3) +
+  xlab("พรรค") +
+  ylab("อัตราส่วน")+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0),axis.text = element_text(size = 14))
+
+display = t[,list(
+  `หมายเลขพรรค` = party_no,
+  `ชื่อพรรค` = party_name,
+  `จำนวนเขตที่ตรง` = cnt,
+  `คะแนนส้มหล่น` = format(party_list_vote, big.mark = ","),
+  `คะแนนทั้งหมด` = format(total_vote, big.mark = ","),
+  `อัตราส่วน` = percent(ratio),
+  `ประมานการณ์` = format(extrapolate,big.mark = ","),
+  `ส่วนต่าง` = format(extrapolate,big.mark = ",")
+
+  )]
+
+datatable(display, options = list(pageLength = 20,dom = 'rt'), rownames = FALSE)
+
+
+vv = sum(t$diff) %>% as.character() %>% format(big.mark = ",") %>% cat("รวมทั้งหมด",.,"เสียง")
+
+# v = t[party_no <= 9 ]
+# sum(v$party_list_vote)/sum(v$total_vote)
+# sum(v$cnt)/(8*400)
+
+# sum(t$total_vote-t$extrapolate)
+# sum(t[party_no <= 9]$total_vote-t[party_no <= 9]$extrapolate)
+```
+
+>เราพอจะสรุปได้ว่า
+>
+1. พรรคที่ได้คะแนนส้มหล่นมากที่สุดคือพรรคหมายเลข 1-9 
+2. หมายเลข 10 และ หมายเลข 11 ได้บ้างเพียงเล็กน้อย
+3. ตั้งแต่ 12 ขึ้นไปแทบจะไม่ได้เลย
+
+
+# เป็นความบังเอิญจริงๆหรือ
+
+>ที่นี้เรามาลองดูกันอีกมุมหนึ่งว่า พรรคเล็กเหล่านี้ได้คะแนนจากการที่เลขพรรคไปบังเอิญตรงกันกับ เลขผู้สมัคร  ส.ส. ของพรรคใหญ่พรรคใดเป็นสัดส่วนเท่าใหร่บ้าง
+
+```{r, echo = FALSE, fig.width=12}
+
+#smallParty = smallParty = c(1:6,8:9)
+alignZone = result[party_no %in% bigParty & no %in% smallParty]
+alignZone2 = alignZone[,list(zone_vote = sum(zone_vote)),by=list(party_name)]
+
+t2 = result[alignZone, on = list(cons_id,party_no = no)]
+t2 = t2[,list(party_list_vote = sum(party_list_vote), cnt = .N), by =list(party_name = i.party_name,party_no = i.party_no)]
+
+t2 = alignZone2[t2,on = list(party_name)][order(-zone_vote)]
+t2[,ratio := (party_list_vote/zone_vote)]
+#sum(t[party_no<=6]$party_list_vote)/sum(t[party_no<=6]$total_vote)
+
+
+t2$party_name <- reorder(t2$party_name, -t2$ratio)
+
+ggplot(data=t2, mapping=aes(x=party_name, y = ratio, fill=party_name)) + 
+  geom_bar(stat = "identity")+
+  geom_text(aes(label = percent(ratio)), vjust = -0.5, size = 3) +
+  xlab("พรรค") +
+  ylab("อัตราส่วน")+
+  theme(axis.text.x = element_text(angle = 90),axis.text = element_text(size = 14))
+
+display = t2[,list(
+  `ตรงกับพรรคใหญ่` = party_name,
+  `คะแนนเขตพรรคใหญ่` = format(zone_vote,big.mark = ","),
+  `คะแนนบัญชีรายชื่อพรรคเล็ก` = format(party_list_vote, big.mark = ","),
+  `จำนวนเขต` = format(cnt, big.mark = ","),
+  `อัตราส่วน` = percent(ratio)
+)]
+datatable(display, options = list(dom = 'rt'), rownames = FALSE)
+
+
+```
+
+> หากคะแนนเหล่านี้ เกิดจากการกาสลับใบจริงๆ แล้วเหตุใดผู้ลงคะแนนเลือก ส.ส. จากก้าวไกลถึงกาสลับใบเพียงแค่  2.21% แต่ผู้ลงคะแนนเลือก ส.ส. จากพลังประชารัฐ, ภูมิใจไทย, และประชาธิปัตย์จึงได้กาผิดกันมากถึง 6.5 - 7.2% 
+
+> จะเป็นไปได้หรือไม่ ถ้ามันไม่ใช่เป็นเพราะกาสลับใบ แต่เป็นเพราะพวกเขาเหล่านั้นตั้งใจกาเบอร์นี้ตั้งแต่แรก 
+
+
+
+```{r no 1-9 by zone using percentiles, echo= FALSE}
+
+singleDigitResult = result[party_no %in% smallParty]
+
+singleDigitVote = result[,list(
+  single_digit_vote = sum(.SD[party_no %in% smallParty]$party_list_vote), 
+  total_vote = sum(party_list_vote)
+  ),by = list(cons_id,province_name,cons_no)]
+singleDigitVote[,ratio := round(single_digit_vote/total_vote,5)]
+
+singleDigitResult = singleDigitResult[party_no <= 9]
+singleDigitResult[,upper_bound := quantile(party_list_vote,0.99)]
+outliers = singleDigitResult[party_list_vote >= upper_bound]
+#outliers$party_name %>% table
+
+  
+```
+
+
+
+# ทฤษฎีปลอกกระสุน
+
+> ดังที่ผมเขียนไว้ในบทนำว่า "การทุจริตการเลือกตั้งโดยการซื้อเสียงมักจะทำโดยการซื้อเสียง  ส.ส. เขตเนื่องจากใช้เงินลงทุนน้อยกว่ามากต่อ 1 ที่นั่งในสภาและชาวบ้านที่ถูกซื้อเสียงเหล่านั้นก็มักจะกาบัตร 2 ใบเป็นเลขเดียวกันเพื่อป้องกันความผิดพลาดและง่ายต่อการจดจำ"
+
+> เมื่อใดก็ตามที่หมายเลขของผู้สมัคร  ส.ส. คนใดคนหนึ่งในพรรคใหญ่ไปตรงกับหมาบเลขพรรคของพรรคเล็ก คะแนนของพรรคเล็กเหล่านี้จะเป็นร่องรอยที่เปรียบได้กับปลอกกระสุนดังที่อาจารย์ลอยได้ตั้งชื่อไว้ (ชอบชื่อนี้มาก)  หมายความว่าหากเราตามรอยของปลอกกระสุนนี้ไป เราอาจจะไปพบกับเจ้าของปลอกกระสุนนี้ได้ ถึงแม้ว่าเราอาจจะไม่สามารถพิสูจน์ได้ว่าเขาเป็นคนยิงหรือไม่ก็ตาม
+
+>มีขยายความเพิ่มเติมในข้อ 6
+
+> ในการวิเคระห์ถัดจากนี้เราจะนิยามความหมายของพรรคเล็กพรรคใหญ่ดังต่อไปนี้
+
+> พรรคใหญ่คือ 6 พรรคที่ได้คะแนนบีญชีรายชื่อสูงที่สุดคือ พรรคก้าวไกล(31) เพื่อไทย(29) ไทยรักษาชาติ(22) ภูมิใจไทย(7) และ พลังประชารัฐ(37) และ ประชาธิปัตย์ (66)
+> และพรรคเล็กคือ 8 พรรคเบอร์ 1 ถึง 9 ที่ไม่รวมภูมิใจไทย ( 7) โดยเราจะข้ามพรรคตั้งแต่หมายเลข 10 ขึ้นไปเพื่อความสะดวกในการวิเคราะห์ข้อมูล
+
+## ผู้ต้องสงสัย TOP 1%
+
+> จากทั้งหมด 3,200 ตัวอย่าง( 8 พรรคเล็ก พรรคละ 400 เขต) หากเราลองเจาะลึกดูเฉพาะเขตที่พรรคเล็กได้คะแนนเสียงมากเป็นพิเศษ โดยผมจะเลือกมา 32 ตัวอย่างจาก 3,200  (1% จาก 3,200 ตัวอย่าง) โดยเรียงลำดับจากเขตที่พรรคเล็กได้คะแนนบัญชีรายชื่อได้มากที่สุด ไล่ลงไปหาเขตที่ได้คะแนนน้อยที่สุด
+
+> จากทั้งหมด 32 ตัวอย่าง เมื่อเราเอาหมายเลขของพรรคมาหาว่าผู้สมัครท่านใดในเขตนั้นที่มีหมายเลขตรงกัน เราจะได้ผู้สมัครออกมาทั้งหมด 32 คนดังนี้
+
+
+```{r}
+
+suspect = result[outliers,on = list(cons_id,no = party_no)]
+suspect = suspect[order(-i.party_list_vote)]
+display = suspect[,list(
+  `จังหวัด` = province_name,
+  `เขต` = i.cons_no,
+  `พรรคเล็ก` = i.party_name,
+  `คะแนนบัญชีรายชื่อ` = format(i.party_list_vote, big.mark = ","),
+  #`ส่วนแบ่ง` = percent(i.party_list_vote_percent/100),
+  `ตรงกับพรรคใหญ่` = party_name,
+  `ผู้สมัครหมายเลข` = no,
+  `อันดับในเขต` = mp_app_rank
+)]
+
+
+datatable(display, options = list(pageLength = 32,dom = 'rt'))
+# 
+# %>%
+#   formatStyle(
+#     'พรรคเล็ก',
+#     backgroundColor = styleEqual(unique(display$`พรรคเล็ก`), c('#FFDFD3', '#DAF5DE', '#FFDFD3', '#DAF5DE','#FFDFD3', '#DAF5DE','#FFDFD3', '#DAF5DE'))
+#   )
+
+```
+
+> เราพบว่าจากผู้สมัครต้องสงสัยสูงสุด 32 คนที่เราเลือกมานั้นมีถึง 30 คนที่ชนะในเขตของตนเอง และอีก 2 คนที่เหลือก็ยังได้อันดับที่ 2 ในเขตนั้นๆ
+
+> หากกวาดตามองผ่านๆก็จะพบว่าชื่อของพรรคภูมิใจไทยและพรรคพลังประชารัฐโผล่ขึ้นมาเต็มไปหมด และเมื่อเราทำตารางสรุปจากข้อมูลข้างต้นจะได้ออกมาดังนี้ครับ
+
+```{r check on those suspicious zone, echo=FALSE, fig.width=12}
+
+suspectSummary = suspect[,list(
+  cnt = .N, 
+  win = sum(mp_app_rank == 1),
+  zone_vote = sum(zone_vote),
+  party_list_vote = sum(party_list_vote)
+),by =list(party_name)]
+suspectSummary[,vote_ratio := party_list_vote/zone_vote]
+suspectSummary = suspectSummary[order(cnt,decreasing = TRUE)]
+suspectSummary$party_name <- factor(suspectSummary$party_name, levels = suspectSummary$party_name)
+
+
+
+suspectSummary$match_party_name = as.character(suspectSummary$match_party_name)
+
+display = suspectSummary[,list(
+  `พรรค` = party_name,
+  `จำนวนผู้สมัคร` = cnt,
+  `จำนวนเขตที่ชนะ` = win,
+  `คะแนนเขต` = format(zone_vote, big.mark =","),
+  `คะแนนบัญชีรายชื่อ` = format(party_list_vote,big.mark = ",")
+  #,`อัตราส่วน` = percent(vote_ratio)
+)]
+
+datatable(display,options = list(dom = 'rt'))
+
+ggplot(data=suspectSummary, mapping=aes(x=party_name, y = cnt,fill = "#bae1ff")) + 
+  geom_bar(stat = "identity")+
+  geom_bar(aes(y = as.numeric(win), fill = "#baffc9"), stat = "identity", position = "stack")+
+  geom_text(aes(label = cnt), vjust = -0.5, size = 3) +
+  ylab("จำนวนเขต")+
+  xlab("")+
+  theme(axis.text.x = element_text(angle = 90),axis.text = element_text(size = 14),legend.position = "none")
+```
+
+>เราพบผู้สมัครจากพรรคภูมิใจไทยถึง 15 ท่านและผู้สมัครจากพรรคพลังประชารัฐ 9 ท่าน แต่เรากลับไม่พบชื่อผู้สมัครจาก พรรคก้าวไกลเลยแม่แต่ท่านเดียว รวมถึงพรรครวมไทยสร้างชาติด้วย
+
+
+## ผู้ต้องสงสัย TOP 3%
+
+>เราลองหยิบตัวอย่างมาดูมากขึ้นคือ Top 3% หรือ 106 ตัวอย่าง
+
+```{r 0.97, echo = FALSE, fig.width = 12}
+
+singleDigitResult[,upper_bound := quantile(party_list_vote,0.97)]
+outliers = singleDigitResult[party_list_vote >= upper_bound]
+display = outliers[,list(
+  province_name,
+  cons_no,
+  party_name,
+  party_list_vote = format(party_list_vote, big.mark = ","),
+  party_list_vote_percent = percent(party_list_vote_percent/100)
+)][order(party_name,-party_list_vote)]
+
+suspect = result[outliers,on = list(cons_id,no = party_no)]
+# suspect$cons_id %>% length
+# suspect$cons_id %>% unique() %>% length
+suspectSummary = suspect[,list(
+  cnt = .N, 
+  win = sum(mp_app_rank == 1),
+  zone_vote = sum(zone_vote),
+  party_list_vote = sum(party_list_vote)
+),by =list(party_name)]
+suspectSummary[,vote_ratio := party_list_vote/zone_vote]
+suspectSummary = suspectSummary[order(-cnt)]
+suspectSummary$party_name <- factor(suspectSummary$party_name, levels = suspectSummary$party_name)
+
+display = suspectSummary[,list(
+  `พรรค` = party_name,
+  `จำนวนผู้สมัคร` = cnt,
+  `จำนวนเขตที่ชนะ` = win,
+  `คะแนนเขต` = format(zone_vote, big.mark =","),
+  `คะแนนบัญชีรายชื่อพรรคเล็ก` = format(party_list_vote,big.mark = ","),
+  `อัตราส่วน` = percent(vote_ratio)
+)]
+
+datatable(display,options = list(dom = 'rt'))
+
+ggplot(data=suspectSummary, mapping=aes(x=party_name, y = cnt,fill = "#bae1ff")) + 
+  geom_bar(stat = "identity")+
+  geom_bar(aes(y = as.numeric(win), fill = "#baffc9"), stat = "identity", position = "stack")+
+  geom_text(aes(label = cnt), vjust = -0.5, size = 3) +
+  ylab("จำนวนเขต")+
+  xlab("")+
+  theme(axis.text.x = element_text(angle = 90),axis.text = element_text(size = 14),legend.position = "none")
+
+```
+## ผู้ต้องสงสัย TOP 5%
+
+>เราลองหยิบตัวอย่างมาดูมากขึ้นอีกคือ Top 5% หรือ 160 ตัวอย่าง
+
+```{r 0.95, echo = FALSE, fig.width=12}
+
+singleDigitResult[,upper_bound := quantile(party_list_vote,0.95)]
+outliers = singleDigitResult[party_list_vote >= upper_bound]
+display = outliers[,list(
+  province_name,
+  cons_no,
+  party_name,
+  party_list_vote = format(party_list_vote, big.mark = ","),
+  party_list_vote_percent = percent(party_list_vote_percent/100)
+)][order(party_name,-party_list_vote)]
+
+suspect = result[outliers,on = list(cons_id,no = party_no)]
+# suspect$cons_id %>% length
+# suspect$cons_id %>% unique() %>% length
+suspectSummary = suspect[,list(
+  cnt = .N, 
+  win = sum(mp_app_rank == 1),
+  zone_vote = sum(zone_vote),
+  party_list_vote = sum(party_list_vote)
+),by =list(party_name)]
+suspectSummary[,vote_ratio := party_list_vote/zone_vote]
+suspectSummary = suspectSummary[order(-cnt)]
+suspectSummary$party_name <- factor(suspectSummary$party_name, levels = suspectSummary$party_name)
+
+display = suspectSummary[,list(
+  `พรรค` = party_name,
+  `จำนวนผู้สมัคร` = cnt,
+  `จำนวนเขตที่ชนะ` = win,
+  `คะแนนเขต` = format(zone_vote, big.mark =","),
+  `คะแนนบัญชีรายชื่อพรรคเล็ก` = format(party_list_vote,big.mark = ","),
+  `อัตราส่วน` = percent(vote_ratio)
+)]
+
+datatable(display,options = list(dom = 'rt'))
+
+ggplot(data=suspectSummary, mapping=aes(x=party_name, y = cnt,fill = "#bae1ff")) + 
+  geom_bar(stat = "identity")+
+  geom_bar(aes(y = as.numeric(win), fill = "#baffc9"), stat = "identity", position = "stack")+
+  geom_text(aes(label = cnt), vjust = -0.5, size = 3) +
+  ylab("จำนวนเขต")+
+  xlab("")+
+  theme(axis.text.x = element_text(angle = 90),axis.text = element_text(size = 14),legend.position = "none")
+
+```
+## ข้อสรุปจากกลุ่มตัวอย่าง
+
+> จาก 160 ตัวอย่างเรากลับไม่พบผู้ต้องสงสัยมาจากพรรคก้าวไกลเลยแม้แต่ท่านเดียว
+
+> ทั้งๆที่พรรคก้าวไกลได้คะแนนรวมของ  ส.ส. เขตมากที่สุดเป็นอันดับ 1 หากไม่มีการทุจริตใดๆเกิดขึ้นในการเลือกตั้งครั้งนี้ คะแนนที่จะถูกโยนไปให้บัญชีรายชื่อของพรรคเล็กเนื่องจากการกาสลับใบ ควรมาจากพรรคก้าวไกลมากที่สุด แต่ใน 160 ผู้ต้องสงสัยนี้ กลับไม่มีผู้สมัครพรรคก้าวไกลเลยแม้แต่ท่านเดียว ถึงแม้เราอาจจะไม่สามารถสรุปใด้แบบมั่นใจ 100% แต่มีความเป็นไปได้สูงมากที่ผู้สมัครทั้ง 160 ท่านนี้อาจจะเป็นเจ้าของปลอกกระสุนที่พวกเราเจอ
+
+# การคำนวนหาจำนวนกระสุนทั้งหมด
+
+> หากเรานำผู้ต้องสงสัยทั้งหมด 3200 ผู้สมัคร แล้วคัดออกเหลือที่เป็นผู้สมัครพรรคใหญ่ 6 พรรค เราจะเหลือผู้ต้องสงสัยทั้งหมด 1,912 ท่าน โดยแบ่งออกเป็นผู้สมัครจากแต่ละพรรคได้ดังนี้
+
+```{r}
+
+allSuspect = result[singleDigitResult,on = list(cons_id,no = party_no)]
+allSuspect = allSuspect[party_no %in% bigParty][order(party_no,-i.party_list_vote)]
+display = allSuspect[,list(
+  `จำนวนผู้สมัคร` = .N),by = list(
+    `พรรค`= party_name
+    )]
+
+datatable(display,options = list(dom = "rt"))
+
+```
+
+```{r look at all match plot line graph,fig.width=12}
+
+allSuspect = result[singleDigitResult,on = list(cons_id,no = party_no)]
+allSuspect = allSuspect[party_no %in% bigParty][order(party_no,-i.party_list_vote)]
+allSuspect[singleDigitVote,share := i.party_list_vote/total_vote, on =list(cons_id)]
+
+allSuspect[order(-i.party_list_vote),all_index := 1:.N]
+allSuspect[order(party_no,-i.party_list_vote),index := 1:.N, by = list(party_no)]
+allSuspect[order(party_no,-share),share_index := 1:.N, by = list(party_no)]
+
+allSuspect[,cumulative_win := cumsum(mp_app_rank == 1), by = list(party_no)]
+allSuspect[,cumulative_zone_vote := cumsum(zone_vote), by = list(party_no)]
+allSuspect[,cumulative_party_list_vote := cumsum(i.party_list_vote), by = list(party_no)]
+
+allSuspect[is.na(cumulative_win),cumulative_win := 0]
+allSuspect[,diff := data.table::shift(cumulative_win, n = -15, fill = 0)-cumulative_win,by =list(party_no)]
+allSuspect[, first_row := ifelse(diff == 1, match(1, diff), NA),by=list(party_no)]
+allSuspect[, last_row := index == .N, by = party_no]
+allSuspect[,bin100 := as.integer(ceiling(all_index/200))]
+
+allSuspect[,bin30 := ceiling(index/30)]
+
+allSuspect$party_no = as.factor(allSuspect$party_no)
+
+# allSuspectSummary = allSuspect[,list(
+#   total_win = sum(mp_app_rank == 1)
+# ), by =list( bin100,party_name)]
+# allSuspectSummary[,bin100_cat := paste(((bin100-1) * 200 + 1), "-", (bin100 * 200))]
+# cat_order = allSuspectSummary[order(bin100)]$bin100_cat %>% unique
+# allSuspectSummary[,bin100_cat := factor(bin100_cat,levels  =cat_order )]
+# 
+# 
+# ggplot(allSuspectSummary, aes(x = bin100_cat, y = total_win, fill = bin100_cat)) +
+#  geom_bar(stat = "identity")+
+#  facet_wrap( ~ party_name, nrow = 3) +
+#   theme(axis.text.x = element_text(angle = 90,vjust = 0),axis.text = element_text(size = 14))+
+#   geom_text(aes(label = total_win,), vjust = -0.5, size = 3)
+
+#   
+# kk = allSuspect[party_no == 31]$i.party_list_vote
+# qq3 = quantile(kk,0.75)
+# qq1 = quantile(kk,0.25)
+# iqr = qq3-qq1
+# upperWhisker = qq3+1.5*iqr
+# lowerWhisker = qq1-1.5*iqr
+# kk = kk[kk<= upperWhisker]
+# mm = mean(kk)
+# ssd = sd(kk)
+# upperBound = mm+2*(ssd)
+# 
+# ggplot(allSuspect, aes(x = index, y = i.party_list_vote,color = party_no)) +
+#   geom_line(size = 1) +
+#   labs(title = "Scatter Plot", x = "X", y = "Y")+
+#   geom_text(data = allSuspect[allSuspect$index %% 50 == 0, ], aes(label = i.party_list_vote), vjust = -1) +
+#   geom_hline(yintercept = upperBound, linetype = "dashed", color = "red")
+
+# v = allSuspect[diff == 0,list(cheat = min(index)),by = list(party_no)]
+# v = allSuspect[v, on = list(party_no)]
+# v[index <= cheat, list(cheat = max(cheat),rank = mean(mp_app_rank)), by =list(party_no)]
+
+```
+
+
+## ผู้สมัครต้องสงสัยทั้งหมด VS ตัวชี้วัดต่างๆ
+
+>อันดับต้องสงสัยภายในพรรค = นำผู้ต้องสงสัยทั้งหมดมาจับเรียงตามคะแนนปาร์ตี้ลิสต์ของพรรคเล็กที่มีหมายเลขตรงกันกับผู้สมัครคนนั้น ( อันดับต้องสงสัย 1 ถึง 1,912 )
+
+>ที่นั่งสะสม = จำนวนที่นั่งสะสมที่พรรครวบรวมได้
+
+```{r, fig.width = 12}
+
+ggplot(allSuspect, aes(x = all_index, y = cumulative_win,color = party_name)) +
+  geom_line(linewidth = 1.5) +
+  theme_minimal(base_size = 20)+
+  geom_text(data = allSuspect[allSuspect$index %% 100 == 0 |  last_row == TRUE ], aes(label = cumulative_win,fontface = "bold"), vjust = -1) +
+  ylab("ที่นั่งสะสม")+
+  xlab("อันดับต้องสงสัย")
+
+```
+
+## อันดับต้องสงสัยภายในพรรค VS เขตที่ชนะสะสม
+
+> อันดับต้องสงสัยภายในพรรค = นำผู้ต้องสงสัยแยกตามแต่ละพรรคมาจับเรียงตามคะแนนปาร์ตี้ลิสต์ของพรรคเล็กที่มีหมายเลขตรงกันกับผู้สมัครคนนั้น ( อันดับต้องสงสัย 1 ถึง 300 กว่าๆ )
+
+```{r, fig.width = 12}
+
+
+ggplot(allSuspect, aes(x = index, y = cumulative_win,color = party_name)) +
+  geom_line(linewidth = 1.5) +
+  geom_text(data = allSuspect[allSuspect$index %% 50 == 0 |  last_row == TRUE ], aes(label = cumulative_win,fontface = "bold"), vjust = -1) +
+  theme_minimal(base_size = 20)+
+  ylab("ที่นั่งสะสม")+
+  xlab("อันดับต้องสงสัย")+
+    scale_x_continuous(breaks = seq(0, 325, 20))
+
+```
+
+
+## อันดับต้องสงสัยภายในพรรค VS คะแนนบัญชีรายชื่อพรรคเล็ก
+
+> คะแนนบัญชีรายชื่อพรรคเล็ก = คะแนนปาร์ตี้ลิสต์ของพรรคเล็กที่มีหมายเลขตรงกันกับผู้สมัครในพรรคนั้นๆ
+
+```{r, fig.width = 12}
+
+ggplot(allSuspect, aes(x = index, y = i.party_list_vote,color = party_name)) +
+  geom_line(linewidth = 1.5)+
+  geom_text_repel(data = allSuspect[allSuspect$index %% 100 == 0 ], aes(label = i.party_list_vote,fontface = "bold"), vjust = -1) +
+ theme_minimal(base_size = 20)+
+  ylab("คะแนนบัญชีรายชื่อพรรคเล็ก")+
+  xlab("อันดับต้องสงสัย")+
+    scale_x_continuous(breaks = seq(0, 325, 20))
+
+
+```
+
+## อันดับต้องสงสัยภายในพรรค  VS % ส่วนแบ่งคะแนนบัญชีรายชื่อพรรคเล็กในเขต
+
+> % ส่วนแบ่งคะแนนบัญชีรายชื่อพรรคเล็กในเขต = คะนนบัญชีรายชื่อพรรคเล็กหารด้วยคะแนนบัญชีรายชื่อของทุกพรรครวมกันในเขตนั้นๆ
+
+
+```{r, fig.width = 12}
+
+ggplot(allSuspect, aes(x = share_index, y = share,color = party_name)) +
+  geom_line(linewidth = 1.5)+
+    geom_text_repel(data = allSuspect[allSuspect$share_index %% 100 == 0 |  last_row == TRUE ], aes(label = percent(share),fontface = "bold"), vjust = -1)+
+  theme_minimal(base_size = 20)+
+  ylab("% ส่วนแบ่งคะแนนบัญชีรายชื่อพรรคเล็ก")+
+  xlab("อันดับต้องสงสัย")+
+  scale_y_continuous(labels = percent)+
+  scale_x_continuous(breaks = seq(0, 325, 20))
+
+
+```
+
+## อันดับต้องสงสัยภายในพรรค  VS คะแนนบัญชีรายชื่อสะสม
+
+> คะแนนเขตสะสม = คะแนน ส.ส. เขตที่พรรครวบรวมได้
+
+```{r, fig.width = 12}
+
+ggplot(allSuspect, aes(x = index, y = cumulative_zone_vote,color = party_name)) +
+  geom_line(linewidth = 1.5)+
+  geom_text_repel(data = allSuspect[last_row == TRUE ], aes(label = format(cumulative_zone_vote,big.mark=","),fontface = "bold"), vjust = -1)+
+  theme_minimal(base_size = 20)+
+  ylab("คะแนนเขตสะสม")+
+  xlab("อันดับต้องสงสัย")+
+    scale_x_continuous(breaks = seq(0, 325, 20))
+
+
+```
+
+## คำนวนกระสุนทั้งหมด
+
+> เราสามารถอนุมานจำนวนเขตและคะแนนที่มีการสาดกระสุนได้ด้วยหลากหลายวิธีจากการสังเกตุลักษณะของการเปลี่ยนแปลงในธรรมชาติของกราฟเช่น 
+
+> พรรคภูมิใจไทย
+>
+- จากกราฟ 5.2 สสคนสุดท้ายที่ได้ที่นั่ง ตำแหน่งประมาน 120
+- จากกราฟ 5.3 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 1ุ60  และแบนราบออก
+- จากกราฟ 5.4 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 160 และแบนราบออก
+- จากกราฟ 5.5 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 150 และแบนราบออก
+- อนุมานได้ว่าพรรคภูมิใจไทยมีการสาดกระสุนประมาน 120-160 เขต
+
+> พรรครวมไทยสร้างชาติ
+>
+- จากกราฟ 5.2 สสคนสุดท้ายที่ได้ที่นั่ง ตำแหน่งประมาน 75
+- จากกราฟ 5.3 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 80 และแบนราบออก
+- จากกราฟ 5.4 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 100 และแบนราบออก
+- จากกราฟ 5.4 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 100 และแบนราบออก
+- อนุมานได้ว่าพรรครวมไทยสร้างชาติมีการสาดกระสุนประมาน 75-100  เขต
+
+> พรรคประชาธิปัตย์
+>
+- จากกราฟ 5.2 สสคนสุดท้ายที่ได้ที่นั่ง ตำแหน่งประมาน 80
+- จากกราฟ 5.3 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 90 และแบนราบออก
+- จากกราฟ 5.4 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 90 และแบนราบออก
+- จากกราฟ 5.5 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 90 และแบนราบออก
+- อนุมานได้ว่าพรรคประชาธิปัตย์ไทยมีการสาดกระสุนประมาน 80-90 เขต
+
+> พรรคเพื่อไทย
+>
+- จากกราฟ 5.2 กราฟหักหัวที่ตำแหน่งประมาน 175
+- จากกราฟ 5.3 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 60 และแบนราบออก
+- จากกราฟ 5.4 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 40 และแบนราบออก
+- จากกราฟ 5.4 กราฟเป็นเส้นโค้งถึงตำแหน่งที่ 300
+- อนุมานได้ว่าพรรคเพื่อไทยมีการสาดกระสุนประมาน 40-300  เขต
+
+
+> พรรคพลังก้าวไกล
+>
+- จากกราฟ 5.2 เทรนกราฟเป็นเส้นตรง = 0
+- จากกราฟ 5.3 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 40 และแบนราบออก
+- จากกราฟ 5.4 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่  40 และแบนราบออก
+- จากกราฟ 5.5 เทรนกราฟเป็นเส้นตรง = 0
+- อนุมานได้ว่าพรรคก้าวไกลมีการสาดกระสุนประมาน 0-40 เขต
+
+> พรรคพลังประชารัฐ
+>
+- จากกราฟ 5.2 สสคนสุดท้ายที่ได้ที่นั่ง ตำแหน่งประมาน 140
+- จากกราฟ 5.3 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 160 และแบนราบออก
+- จากกราฟ 5.4 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 160 และแบนราบออก
+- จากกราฟ 5.5 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 150 และแบนราบออก
+- อนุมานได้ว่าพรรคพลังประชารัฐมีการสาดกระสุนประมาน 140-160 เขต
+
+## สรุปจำนวนกระสุน
+
+```{r, fig.width=12, warning=FALSE}
+
+#cutOff = allSuspect[i.party_list_vote >= upperBound, list(cheat = max(index),rank = mean(mp_app_rank)), by = list(party_no)]
+
+cutOff = data.table(
+  party_name = unique(allSuspect$party_name),
+   party_no = unique(allSuspect$party_no),
+  min = c(120,75,80,175,0,140),
+  max = c(160,100,90,300,40,160)
+)
+#cutOff = cutOff[allSuspect,seat := cumulative_win, on = list(party_name,cut_off = index)]
+cutOff = allSuspect[cutOff, on = list(party_no)]
+cutOff[min == index, min_seat := cumulative_win]
+cutOff[max == index, max_seat := cumulative_win]
+cutOff[min == index, min_cumulative_party_list_vote := cumulative_party_list_vote]
+cutOff[max == index, max_cumulative_party_list_vote := cumulative_party_list_vote]
+
+
+cutOff = cutOff[,list(
+  min_seat = min(min_seat,na.rm=TRUE ),
+  max_seat = max(max_seat,na.rm=TRUE ),
+  min_cumulative_party_list_vote = min(min_cumulative_party_list_vote,na.rm=TRUE ),
+  max_cumulative_party_list_vote = max(max_cumulative_party_list_vote,na.rm=TRUE )
+), by = list(min,max,party_no,party_name)] %>% unique
+
+cutOff[!is.finite(min_cumulative_party_list_vote), min_cumulative_party_list_vote := 0]
+cutOff[!is.finite(min_seat), min_seat := 0]
+
+display = cutOff[,list(
+  `พรรค`= party_name,
+  `จำนวนเขตต่ำสุด` = min,
+  `จำนวนเขตสูงสุด` = max,
+  `จำนัวนที่นั่งต่ำสุด` = min_seat,
+  `จำนวนที่นั่งสูงสุด` = max_seat,
+  `ซื้อเสียงจำนวนต่ำสุด` = min_cumulative_party_list_vote %>% format(big.mark=","),
+  `ซื้อเสียงจำนวนสูงสุด` = max_cumulative_party_list_vote %>% format(big.mark=",")
+)]
+
+datatable(display,options = list(dom = "rt"))
+
+v = cutOff[,list(
+  min_cumulative_party_list_vote = sum(min_cumulative_party_list_vote) %>% format(big.mark = ","),
+  max_cumulative_party_list_vote = sum(max_cumulative_party_list_vote) %>% format(big.mark = ",")
+)]
+
+cat("อาจมีการซื้อเสียงรวมกันมากถึง",v$min_cumulative_party_list_vote,"ไปจนถึง",v$max_cumulative_party_list_vote,"เสียง")
+
+```
+
+> ซึ่งได้ตัวเลขออกมาใกล้เคียงกับตัวเลข 873,678  เสียงที่เราคาดการณ์ไว้ที่ข้อ 2.3
+
+# correlation or causation
+
+> เนื้อหาส่วนนี้เขียนขึ้นมาเพิ่มเติมภายหลัง เนื่องจากมีหลายท่านที่สงสัยว่ามันเป็น Correlation หรือ Causation กันแน่
+
+> หรือพูดอีกอย่างคือการกาสลับใบอาจจะเป็นเพราะผู้ที่ลงคะแนนเลือกแต่ละพรรคอาจจะมีพื้นฐานด้าน Demographic ที่แตกต่างกันซึ่งหากเป็นเช่นนั้นจริงแปลว่า ผู้ลงคะแนนให้พรรคเดียวกันในจังหวัดเดียวกัน แต่แตกต่างกันเพียงที่หมายเลขเขตก็ควรจะมีธรรมชาติของข้อมูลที่คล้ายๆกัน อัตราการกาสลับก็ควรจะใกล้เคียงกัน คะแนนบัญชีรายชื่อของพรรคเล็กก็ควรจะใกล้เคียงกันเช่นกัน
+
+>ผมจึงเอาข้อมูลมาปรียบเทียบดูผู้สมัครจากพรรคเดียวกันในจังหวัดเดียวกัน และเปรียบเทียบคะแนนบัญชีรายชื่อของพรรคเล็กในเขตที่ผู้สมัครที่ชนะการเลือกตั้งเปรียบเทียบกับผู้สมัครที่แพ้การเลือกตั้ง
+
+> ** ข้อมูลเฉพาะจังหวัดที่มีทั้งเขตแพ้และชนะในพรรคและจังหวัดเดียวกันจาก 1,912 ตัวอย่างเดียวกับกราฟด้านบน
+
+> ตารางนี้เป็น Interactive Data สารมารถคลิกเข้าไปกรองดูได้
+
+> คะแนนเฉลี่ยในตารางนี้คือคะแนนบัญชีรายชื่อพรรคเล็ก
+
+> อัตราส่วนคือเอาคะแนนเฉลี่ยในเขตที่แพ้ / คะแนนเฉลี่ยในเขตที่ชนะ ตัวเลขยิ่งน้อยแปลว่าเขตที่แพ้จะกาสลับใบน้อยเมื่อเทียบกับเขตที่ชนะ
+
+```{r}
+allSuspect[,is_win := mp_app_rank == 1]
+compare_party_vote = allSuspect[,list(
+  zone_votex = sum(zone_vote) %>% as.integer(),
+  party_list_votex = mean(i.party_list_vote, na.rm = TRUE) %>% as.integer(),
+  cnt = .N
+), by = list(party_name,province_name,is_win)]
+compare_party_vote[,sample := .N,by = list(party_name,province_name)]
+compare_party_vote = compare_party_vote[order(party_name,province_name,is_win)]
+win = compare_party_vote[is_win == TRUE]
+lose = compare_party_vote[is_win == FALSE]
+compare_party_vote = win[lose,on = list(party_name,province_name)]
+compare_party_vote[,ratio := i.party_list_votex/party_list_votex]
+compare_party_vote = compare_party_vote[sample == 2]
+display = compare_party_vote[,list(
+  `พรรค` = party_name,
+ `จังหวัด` = province_name,
+ `จำนวนเขตที่ชนะ` = cnt,
+ `คะแนนเฉลี่ย` = party_list_votex,
+ `จำนวนเขตที่แพ้` = i.cnt,
+ `คะแนนเฉลี่ย` = i.party_list_votex,
+ `อัตราส่วน` = percent(ratio)
+)]
+
+
+#compare_party_vote[,ratio := party_list_votex/zone_votex]
+datatable(display, options = list(pageLength = 20))
+
+```
+
+> สรุปออกมาเป็นรายพรรค
+
+```{r}
+
+allSuspect[,is_win := mp_app_rank == 1]
+compare_party_vote = allSuspect[,list(
+  zone_votex = sum(zone_vote) %>% as.integer(),
+  party_list_votex = mean(i.party_list_vote, na.rm = TRUE) %>% as.integer(),
+  cnt = .N
+), by = list(party_name,is_win)]
+compare_party_vote[,sample := .N,by = list(party_name)]
+compare_party_vote = compare_party_vote[order(party_name,is_win)]
+win = compare_party_vote[is_win == TRUE]
+lose = compare_party_vote[is_win == FALSE]
+compare_party_vote = win[lose,on = list(party_name)]
+compare_party_vote[,ratio := i.party_list_votex/party_list_votex]
+compare_party_vote = compare_party_vote[sample == 2]
+display = compare_party_vote[,list(
+  `พรรค` = party_name,
+ `จำนวนเขตที่ชนะ` = cnt,
+ `คะแนนเฉลี่ย` = party_list_votex,
+ `จำนวนเขตที่แพ้` = i.cnt,
+ `คะแนนเฉลี่ย` = i.party_list_votex,
+ `อัตราส่วน` = percent(ratio)
+)]
+
+
+#compare_party_vote[,ratio := party_list_votex/zone_votex]
+datatable(display)
+
+
+```
+
+# อาจมีเขียนเพิ่มเติมไปเรื่อยๆ
+
+# บทสรุป
+
+>คาดการณ์ว่ามีการสาดกระสุน **อย่างๆน้อยๆ** 8 แสนไปจนถึง 1 ล้านนัดทั่วประเทศ ตีมูลค่าได้นับพันล้านบาท> นอกจากพรรคก้าวไกลและพรรคเพื่อไทยแล้ว อีก 4 พรรคที่เหลือมีรูปแบบที่ชัดเจนคือ มักจะได้ที่นั่ง สส ในเขตต้องสงสัยกันทั้งสิ้น มีความสัมพันธ์ระหว่างคะแนนของพรรคเล็กและโอกาสที่จะชนะในเขตอย่างชัดเจน แต่อาจจะมีกลยุทธ์การยิงที่แตกต่างกันออก
+
+>แต่อย่างไรก็ตามไม่ได้แปลว่าจะมีการสาดกระสุนกันเพียง 800,000-1,000,000 นัด แต่อาจจะยังมีกระสุนอีกมากที่เรายังไม่พบ อาจจะที่ยิงแล้วไม่เข้าเป้า หรือมือปืนรับจ้างเก็บกระสุนไปโดยไม่บอกนายแต่อ้างว่ายิงไปแล้ว ซึ่งตัวเลขอาจจะมากกว่านี้เป็นเท่าตัว เรายังไม่อาจทราบได้จากร่องลอยเหล่านี้
+
+
+> พรรคก้าวไกลเป็นพรรคที่ใสสะอาดที่สุดในทั้งหมด 6 พรรคใหญ่ ไม่พบความสัมพันธ์ระหว่างคะแนนพรรคเล็กและเสียงคะแนน สส เขต
+
+>แต่ก็ไม่สามารถสรุปได้ว่าพรรคก้าวไกลไม่มีการซื้อเสียง เพียงแต่ว่าเรายังไม่พบกระสุนเท่านั้นเอง
+
+
+> พรรคเพื่อไทยเป็นพรรคที่มีผลลัพธ์ที่สำหรับผลน่าแปลกใจที่สุดในทั้ง 6 พรรคจากข้อมูลชี้ให้เห็นว่า พรรคเพื่อไทยมีโอกาสที่จะสาดกระสูนแทบทุกเขตการเลือกตั้ง เราปฏิเสธไม่ได้เลยว่าคะแนนพรรคเล็กมีความสัมพันธ์กับเลขผู้สมัครของพรรคเพื่อไทยอย่างมีนัยยะสำคัญ
+
+> ส่วนตัวแล้วผมไม่เชื่อว่าจะมีพรรคการเมืองใหนที่จะสามารถการสาดกระสุนไปได้ถึง 300 เขตทั่วประเทศ แต่ อย่างไรก็ตามผมก็ยังไม่สามารถหาคำตอบหรือเหตุผลมาโต้แย้งข้อสรุปตรงนี้ได้
+
+> เราายังสามารถประมานการณ์ คะแนนบัญชีรายชื่อที่แท้จริงหากไม่มีการสาดกระสุนเกิดขึ้น ได้ด้วยการเทียบบัญญัติยางค์จากตัวเลขคะแนนบัญชีรายชื่อของเขตที่ไม่ชนกับผู้สมัครพรรคใหญ่ และจำนวนเขต ซึ่งจะได้ออกมาว่ามีปลอกกระสุนราวๆ 873,678 นัด
+
+>ทั้งหมดนี้เป็นเพียงแค่การคาดการณ์ทางคณิตศาสตร์เท่านั้น 
+
+>**การวิเคราะห์ทั้งหมดนี้ ยังไม่ได้มีการทวนสอบโค้ดและตัวเลขอย่างถี่ถ้วน**
+
+
+```{r data check, include = FALSE}
+
+v = result[no %in% c(1:6,8:9),list(
+  seat = sum(mp_app_rank==1),
+  vote = sum(zone_vote)
+), by =list(party_name)]
+
+######
+v1 = result[no %in% c(1:6,8:15) & party_no %in% bigParty,list(
+  cons_id,
+  no
+)] %>% unique
+
+v = result[v1, on = list(cons_id,party_no = no)] 
+v = v[,list(
+  party_list_vote = sum(party_list_vote)
+), by = list(party_no)]
+
+v
+
+####
+
+v = allSuspect[index <= cut_off]
+v[,ratio := party_list_vote/zone_vote ]
+v = v[party_no %in% bigParty & is.finite(ratio)]
+v = v[,list(party_name,party_list_vote,zone_vote,ratio)]
+#v = v[,list(cnt = .N), by =list(party_name,province_name)]
+
+v = result[v,suspect := !is.na(i.party_name),on = list(cons_id,party_id)]
+v[is.na(suspect), suspect := FALSE]
+v[,ratio := party_list_vote/zone_vote ]
+
+
+v = v[party_no %in% bigParty,list(
+  sum(party_list_vote)/sum(zone_vote)
+),by =list(party_name,suspect)]
+
+### KLaoklai ratio as standard
+
+vv =result[party_no %in% bigParty,list(
+  mean = sum(party_list_vote)/sum(zone_vote),
+  sd = sd(party_list_vote/zone_vote,na.rm = 1)
+),by = list(party_name)]
+
+
+```
+
+
+
