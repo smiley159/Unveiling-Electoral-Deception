@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = FALSE)
 knitr::opts_knit$set(root.dir = ".", prefix = "index")
 
 options(java.parameters = "- Xmx1024m")
+options(encoding = "UTF-8")
 
 setwd("D:/Download/R")
 #setwd("/Users/smile/Downloads")
@@ -62,7 +63,17 @@ include_graphics("cheating.png")
 
 ---
 
+>แต่ก่อนที่จะเริ่มอ่านบทวิเคราะห์นี้ ผู้อ่านจำเป็นต้องเข้าใจก่อนว่า บทวิเคราะห์ตั้งอยู่บนสมมุติฐานหลายข้อซึ่งยังไม่ได้มีการพิสูจน์ว่าเป็นความจริง อยากให้ผู้อ่านทุกคนเข้าใจหมายเหตุเหล่านี้ก่อนทั้งหมด 3 ข้อ
 
+>
+1. วิธีการซื้อเสียงที่มักจะกระทำโดยการให้กาเลขเดียวกัน 2 ใบ เป็นเพียงสมมติฐานที่ไม่สามารถพิสูจน์ได้เพียงการวิเคราะห์จากตัวเลข 
+2. คนที่กาเลขเดียวทั้ง 2 ใบอาจจะมีเหตุผลอื่นและไม่ได้ถูกซื้อเสียงก็เป็นได้
+3. ตัวเลขบางอย่างสัมพันธ์กันแต่อาจะไม่ได้เป็นเหตุเป็นผลของกันและกัน
+
+>
+*** **เพราะฉนั้นทั้งหมดนี้จึงเป็นเพียงสมมติฐาน และไม่สามารถใช้พิสูจน์ข้อเท็จจริงได้ ** ***
+
+---
 
 ```{r loading data}
 
@@ -242,7 +253,7 @@ display = t[,list(
   `คะแนนทั้งหมด` = format(total_vote, big.mark = ","),
   `อัตราส่วน` = percent(ratio),
   `ประมานการณ์` = format(extrapolate,big.mark = ","),
-  `ส่วนต่าง` = format(extrapolate,big.mark = ",")
+  `ส่วนต่าง` = format(diff,big.mark = ",")
 
   )]
 
@@ -524,6 +535,30 @@ ggplot(data=suspectSummary, mapping=aes(x=party_name, y = cnt,fill = "#bae1ff"))
 
 > ทั้งๆที่พรรคก้าวไกลได้คะแนนรวมของ  ส.ส. เขตมากที่สุดเป็นอันดับ 1 หากไม่มีการทุจริตใดๆเกิดขึ้นในการเลือกตั้งครั้งนี้ คะแนนที่จะถูกโยนไปให้บัญชีรายชื่อของพรรคเล็กเนื่องจากการกาสลับใบ ควรมาจากพรรคก้าวไกลมากที่สุด แต่ใน 160 ผู้ต้องสงสัยนี้ กลับไม่มีผู้สมัครพรรคก้าวไกลเลยแม้แต่ท่านเดียว ถึงแม้เราอาจจะไม่สามารถสรุปใด้แบบมั่นใจ 100% แต่มีความเป็นไปได้สูงมากที่ผู้สมัครทั้ง 160 ท่านนี้อาจจะเป็นเจ้าของปลอกกระสุนที่พวกเราเจอ
 
+## การกระจายตัวของข้อมูล
+
+> ถ้าถึงตรงนี้แล้วคุณยังไม่เชื่อว่าโอกาสที่จะชนะการเลือกตั้งภายในเขตมีความสัมพันธ์กับคะแนนของพรรคเล็ก ให้ลองดูกราฟด้านล่างนี้ครับ
+
+> 1 จุดแทนด้วย 1 ผู้สมัคร สีฟ้าคือชนะในเขต สีแดงคือแพ้ในเขต
+
+```{r tt, fig.width = 12,warning = FALSE}
+
+allSuspect[,is_win := mp_app_rank == 1]
+allSuspect[is_win == TRUE ,is_win_text := 'ชนะ']
+allSuspect[is_win == FALSE ,is_win_text := 'แพ้']
+ggplot(allSuspect, aes(x = party_name, y = i.party_list_vote,color = is_win_text)) +
+  geom_point(position = position_jitter(width = 0.1))+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0),axis.text = element_text(size = 14))+
+  ylab("คะแนนบัญชีรายชื่อพรรคเล็ก")+
+  xlab("")+
+  theme_minimal(base_size = 20)+
+  labs(color = "ผลการเลือกตั้ง")  # Change the legend label
+  # scale_y_continuous(labels = percent)+
+  # scale_x_continuous(breaks = seq(0, 325, 20))
+
+
+```
+
 # การคำนวนหาจำนวนกระสุนทั้งหมด
 
 > หากเรานำผู้ต้องสงสัยทั้งหมด 3200 ผู้สมัคร แล้วคัดออกเหลือที่เป็นผู้สมัครพรรคใหญ่ 6 พรรค เราจะเหลือผู้ต้องสงสัยทั้งหมด 1,912 ท่าน โดยแบ่งออกเป็นผู้สมัครจากแต่ละพรรคได้ดังนี้
@@ -692,6 +727,10 @@ ggplot(allSuspect, aes(x = index, y = cumulative_zone_vote,color = party_name)) 
 
 ```
 
+
+
+
+
 ## คำนวนกระสุนทั้งหมด
 
 > เราสามารถอนุมานจำนวนเขตและคะแนนที่มีการสาดกระสุนได้ด้วยหลากหลายวิธีจากการสังเกตุลักษณะของการเปลี่ยนแปลงในธรรมชาติของกราฟเช่น 
@@ -725,11 +764,11 @@ ggplot(allSuspect, aes(x = index, y = cumulative_zone_vote,color = party_name)) 
 - จากกราฟ 5.2 กราฟหักหัวที่ตำแหน่งประมาน 175
 - จากกราฟ 5.3 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 60 และแบนราบออก
 - จากกราฟ 5.4 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 40 และแบนราบออก
-- จากกราฟ 5.4 กราฟเป็นเส้นโค้งถึงตำแหน่งที่ 300
+- จากกราฟ 5.5 กราฟเป็นเส้นโค้งถึงตำแหน่งที่ 300
 - อนุมานได้ว่าพรรคเพื่อไทยมีการสาดกระสุนประมาน 40-300  เขต
 
 
-> พรรคพลังก้าวไกล
+> พรรคก้าวไกล
 >
 - จากกราฟ 5.2 เทรนกราฟเป็นเส้นตรง = 0
 - จากกราฟ 5.3 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 40 และแบนราบออก
@@ -745,7 +784,7 @@ ggplot(allSuspect, aes(x = index, y = cumulative_zone_vote,color = party_name)) 
 - จากกราฟ 5.5 หัวเริ่มหักลงมาตั้งแต่ประมานตำแหน่งที่ 150 และแบนราบออก
 - อนุมานได้ว่าพรรคพลังประชารัฐมีการสาดกระสุนประมาน 140-160 เขต
 
-## สรุปจำนวนกระสุน
+## ความเป็นไปได้ของจำนวนกระสุน
 
 ```{r, fig.width=12, warning=FALSE}
 
@@ -823,6 +862,7 @@ compare_party_vote = allSuspect[,list(
 ), by = list(party_name,province_name,is_win)]
 compare_party_vote[,sample := .N,by = list(party_name,province_name)]
 compare_party_vote = compare_party_vote[order(party_name,province_name,is_win)]
+xxx = compare_party_vote
 win = compare_party_vote[is_win == TRUE]
 lose = compare_party_vote[is_win == FALSE]
 compare_party_vote = win[lose,on = list(party_name,province_name)]
@@ -841,6 +881,22 @@ display = compare_party_vote[,list(
 
 #compare_party_vote[,ratio := party_list_votex/zone_votex]
 datatable(display, options = list(pageLength = 20))
+
+```
+
+> Visualize การกระจายตัวของข้อมูลโดย 1 จุดคือ 1 จังหวัด
+
+```{r, fig.width = 12, warning= FALSE}
+
+ggplot(compare_party_vote, aes(x = party_name, y = ratio,color = ratio)) +
+  geom_point(position = position_jitter(width = 0.1))+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0),axis.text = element_text(size = 14))+
+  ylim(c(0,2))+
+   scale_color_gradient(limits = c(0, 2), low = "green", high = "red")+  # Use green for 0 and red for values >= 2
+   ylab("อัตราส่วน")+
+   xlab("")
+  # scale_y_continuous(labels = percent)+
+  # scale_x_continuous(breaks = seq(0, 325, 20))
 
 ```
 
@@ -879,75 +935,126 @@ datatable(display)
 
 # อาจมีเขียนเพิ่มเติมไปเรื่อยๆ
 
+```{r, fig.width= 12}
+allSuspect %>% nrow
+noMatch = allSuspect[is.na(i.no)]
+noMatch %>% nrow
+allSuspect[,is_win := mp_app_rank == 1]
+allSuspect[is_win == TRUE ,is_win_text := 'ชนะ']
+allSuspect[is_win == FALSE ,is_win_text := 'แพ้']
+ggplot(noMatch, aes(x = party_name, y = i.party_list_vote,color = is_win_text)) +
+  geom_point(position = position_jitter(width = 0.1))+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0),axis.text = element_text(size = 14))+
+  ylab("คะแนนบัญชีรายชื่อพรรคเล็ก")+
+  xlab("")+
+  theme_minimal(base_size = 20)+
+  labs(color = "ผลการเลือกตั้ง")  # Change the legend label
+  # scale_y_continuous(labels = percent)+
+  # scale_x_continuous(breaks = seq(0, 325, 20))
+
+
+```
+
+```{r, fig.width=12}
+noMatch[,cnt := .N, by = list(cons_id)]
+noMatch[,has_31 := nrow(.SD[party_no == 31]) > 0, by = list(cons_id)]
+noMatch = noMatch[cnt >= 2 & has_31 == TRUE]
+noMatch %>% nrow
+noMatch[, base_index := .SD[party_no == 31]$i.party_list_vote, by = list(cons_id)]
+noMatch[, mistake_rate := i.party_list_vote/base_index]
+noMatch[, mistake_rate := log(mistake_rate,2)]
+
+ggplot(noMatch, aes(x = party_name, y = mistake_rate,color = is_win_text)) +
+  geom_point(position = position_jitter(width = 0.1))+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0),axis.text = element_text(size = 14))+
+  ylab("Mistake Rate(Log Scale Base 2)")+
+  xlab("")+
+  theme_minimal(base_size = 20)+
+  labs(color = "ผลการเลือกตั้ง")  # Change the legend label
+
+ggplot(noMatch, aes(x = party_name, y = mistake_rate,color = i.party_list_vote)) +
+  geom_point(position = position_jitter(width = 0.1))+
+  theme(axis.text.x = element_text(angle = 90,vjust = 0),axis.text = element_text(size = 14))+
+  scale_color_gradient( low = "green", high = "red")+
+  ylab("Mistake Rate(Log Scale Base 2)")+
+  xlab("")+
+  theme_minimal(base_size = 20)+
+  labs(color = "ผลการเลือกตั้ง")  # Change the legend labe
+
+```
+
+```{r, fig.width=12}
+# Split the dataframe by category
+data_split <- split(noMatch, noMatch$party_name)
+
+# Perform the hypothesis test for each category
+# results <- lapply(data_split, function(df) {
+#   df$party_name %>% unique %>% print
+#   model <- glm(is_win ~ mistake_rate, data = df, family = binomial)
+#   return(summary(model))
+# })
+
+results <- lapply(data_split, function(df) {
+  cor_test <- cor.test(df$mistake_rate, df$is_win %>% as.numeric)
+  return(cor_test)
+})
+
+# Create a data frame to store the summary results
+summary_table <- data.frame(Category = character(),
+                            Correlation = numeric(),
+                            P_Value = numeric(),
+                            T_Score = numeric(),
+                            CI_Lower = numeric(),
+                            CI_Upper = numeric(),
+                            stringsAsFactors = FALSE)
+
+# Extract and store the summary information from the results
+for (i in 1:length(results)) {
+  summary_table <- rbind(summary_table, data.frame(Category = names(results)[i],
+                                                  Correlation = results[[i]]$estimate,
+                                                  # P_Value = results[[i]]$p.value,
+                                                  # T_Score = results[[i]]$statistic,
+                                                  CI_Lower = results[[i]]$conf.int[1],
+                                                  CI_Upper = results[[i]]$conf.int[2]))
+}
+
+# Print the summary table
+print(summary_table)
+
+ggplot(noMatch, aes(x = mistake_rate, y = is_win, color = is_win)) +
+  #scale_color_gradient( low = "green", high = "red")+
+  geom_point(position = position_jitter(width = 0.1)) +
+  labs(x = " mistake_rate", y = "ชนะเลือกตั้ง") +
+  theme_minimal() +
+  geom_smooth(method = "lm", se = TRUE, level = 0.95, color = "blue") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red") +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "red")+
+  facet_wrap(~ party_name, ncol = 2)
+```
+
+
+
 # บทสรุป
 
->คาดการณ์ว่ามีการสาดกระสุน **อย่างๆน้อยๆ** 8 แสนไปจนถึง 1 ล้านนัดทั่วประเทศ ตีมูลค่าได้นับพันล้านบาท> นอกจากพรรคก้าวไกลและพรรคเพื่อไทยแล้ว อีก 4 พรรคที่เหลือมีรูปแบบที่ชัดเจนคือ มักจะได้ที่นั่ง สส ในเขตต้องสงสัยกันทั้งสิ้น มีความสัมพันธ์ระหว่างคะแนนของพรรคเล็กและโอกาสที่จะชนะในเขตอย่างชัดเจน แต่อาจจะมีกลยุทธ์การยิงที่แตกต่างกันออก
+>ประมาณการว่ามีการสาดกระสุนที่เข้าเป้า **อย่างๆน้อยๆ** 8 แสนไปจนถึง 1 ล้านนัดทั่วประเทศ ตีมูลค่าได้นับพันล้านบาท
 
->แต่อย่างไรก็ตามไม่ได้แปลว่าจะมีการสาดกระสุนกันเพียง 800,000-1,000,000 นัด แต่อาจจะยังมีกระสุนอีกมากที่เรายังไม่พบ อาจจะที่ยิงแล้วไม่เข้าเป้า หรือมือปืนรับจ้างเก็บกระสุนไปโดยไม่บอกนายแต่อ้างว่ายิงไปแล้ว ซึ่งตัวเลขอาจจะมากกว่านี้เป็นเท่าตัว เรายังไม่อาจทราบได้จากร่องลอยเหล่านี้
+>แต่ไม่ได้แปลว่าจะมีการสาดกระสุนกันเพียง 800,000-1,000,000 นัด อาจจะยังมีกระสุนอีกมากที่เรายังไม่พบ อาจจะมีที่ยิงแล้วไม่เข้าเป้า หรือมือปืนรับจ้างเก็บกระสุนไปโดยไม่บอกนายแต่อ้างว่ายิงไปแล้ว ซึ่งตัวเลขอาจจะมากกว่านี้เป็นเท่าตัว เรายังไม่อาจทราบได้จากร่องลอยเหล่านี้
 
+> พรรคก้าวไกลอาจจะเป็นเป็นพรรคที่ใสสะอาดที่สุดในทั้งหมด 6 พรรคใหญ่ ไม่พบความสัมพันธ์ระหว่างคะแนนพรรคเล็กและเสียงคะแนน สส เขต แต่ก็ไม่สามารถสรุปได้ว่าพรรคก้าวไกลไม่มีการซื้อเสียง เพียงแต่ว่าเรายังไม่พบปลอกกระสุนเท่านั้นเอง
 
-> พรรคก้าวไกลเป็นพรรคที่ใสสะอาดที่สุดในทั้งหมด 6 พรรคใหญ่ ไม่พบความสัมพันธ์ระหว่างคะแนนพรรคเล็กและเสียงคะแนน สส เขต
+> นอกจากพรรคก้าวไกลแล้ว อีก 5 พรรคที่เหลือมีรูปแบบที่ชัดเจนคือ มักจะได้ที่นั่ง สส ในเขตต้องสงสัยกันทั้งสิ้น มีความสัมพันธ์ระหว่างคะแนนของพรรคเล็กและโอกาสที่จะชนะในเขตอย่างชัดเจน เพียงแต่อาจจะมีกลยุทธ์การยิงที่แตกต่างกันออกไป
 
->แต่ก็ไม่สามารถสรุปได้ว่าพรรคก้าวไกลไม่มีการซื้อเสียง เพียงแต่ว่าเรายังไม่พบกระสุนเท่านั้นเอง
-
-
-> พรรคเพื่อไทยเป็นพรรคที่มีผลลัพธ์ที่สำหรับผลน่าแปลกใจที่สุดในทั้ง 6 พรรคจากข้อมูลชี้ให้เห็นว่า พรรคเพื่อไทยมีโอกาสที่จะสาดกระสูนแทบทุกเขตการเลือกตั้ง เราปฏิเสธไม่ได้เลยว่าคะแนนพรรคเล็กมีความสัมพันธ์กับเลขผู้สมัครของพรรคเพื่อไทยอย่างมีนัยยะสำคัญ
+> พรรคเพื่อไทยเป็นพรรคที่มีผลลัพธ์ที่น่าแปลกใจที่สุดในทั้ง 6 พรรคจากข้อมูลชี้ให้เห็นว่า พรรคเพื่อไทยมีโอกาสที่จะสาดกระสุนแทบทุกเขตการเลือกตั้ง เราปฏิเสธไม่ได้เลยว่าคะแนนพรรคเล็กมีความสัมพันธ์กับหมายเลขผู้สมัครของพรรคเพื่อไทยอย่างมีนัยยะสำคัญ
 
 > ส่วนตัวแล้วผมไม่เชื่อว่าจะมีพรรคการเมืองใหนที่จะสามารถการสาดกระสุนไปได้ถึง 300 เขตทั่วประเทศ แต่ อย่างไรก็ตามผมก็ยังไม่สามารถหาคำตอบหรือเหตุผลมาโต้แย้งข้อสรุปตรงนี้ได้
-
-> เราายังสามารถประมานการณ์ คะแนนบัญชีรายชื่อที่แท้จริงหากไม่มีการสาดกระสุนเกิดขึ้น ได้ด้วยการเทียบบัญญัติยางค์จากตัวเลขคะแนนบัญชีรายชื่อของเขตที่ไม่ชนกับผู้สมัครพรรคใหญ่ และจำนวนเขต ซึ่งจะได้ออกมาว่ามีปลอกกระสุนราวๆ 873,678 นัด
 
 >ทั้งหมดนี้เป็นเพียงแค่การคาดการณ์ทางคณิตศาสตร์เท่านั้น 
 
 >**การวิเคราะห์ทั้งหมดนี้ ยังไม่ได้มีการทวนสอบโค้ดและตัวเลขอย่างถี่ถ้วน**
 
 
-```{r data check, include = FALSE}
+---
 
-v = result[no %in% c(1:6,8:9),list(
-  seat = sum(mp_app_rank==1),
-  vote = sum(zone_vote)
-), by =list(party_name)]
-
-######
-v1 = result[no %in% c(1:6,8:15) & party_no %in% bigParty,list(
-  cons_id,
-  no
-)] %>% unique
-
-v = result[v1, on = list(cons_id,party_no = no)] 
-v = v[,list(
-  party_list_vote = sum(party_list_vote)
-), by = list(party_no)]
-
-v
-
-####
-
-v = allSuspect[index <= cut_off]
-v[,ratio := party_list_vote/zone_vote ]
-v = v[party_no %in% bigParty & is.finite(ratio)]
-v = v[,list(party_name,party_list_vote,zone_vote,ratio)]
-#v = v[,list(cnt = .N), by =list(party_name,province_name)]
-
-v = result[v,suspect := !is.na(i.party_name),on = list(cons_id,party_id)]
-v[is.na(suspect), suspect := FALSE]
-v[,ratio := party_list_vote/zone_vote ]
-
-
-v = v[party_no %in% bigParty,list(
-  sum(party_list_vote)/sum(zone_vote)
-),by =list(party_name,suspect)]
-
-### KLaoklai ratio as standard
-
-vv =result[party_no %in% bigParty,list(
-  mean = sum(party_list_vote)/sum(zone_vote),
-  sd = sd(party_list_vote/zone_vote,na.rm = 1)
-),by = list(party_name)]
-
-
-```
-
-
+> เขียนโดย: ภูมิใจ ฉัตรไมตรี
+> 24 พ.ค. 2566
 
